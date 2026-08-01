@@ -1,0 +1,254 @@
+{
+  "name": "Oak Point - Auto Pitch Emails (Gemini + File Upload)",
+  "nodes": [
+    {
+      "parameters": {
+        "operation": "xlsx",
+        "binaryPropertyName": "Business_List__Excel_or_CSV_",
+        "options": {}
+      },
+      "id": "8ea3a61d-e8df-449f-9c88-663e5e76ab2a",
+      "name": "Convert Sheet to Data",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        -432,
+        80
+      ]
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "4e3f5d69-d660-4ac5-b701-7845831d1221",
+      "name": "Loop Over Businesses",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        -208,
+        80
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $input.item.json;\n\nconst managerName = (item['Manager'] || '').toString().trim();\nconst greeting = managerName ? `Hi ${managerName}` : 'Hi Manager';\n\nconst rawService = (item['Service Pitch'] || '').toString().trim().toLowerCase();\nconst isAI = rawService.includes('ai');\n\nconst pitchInstruction = isAI\n  ? `Write a short, persuasive cold outreach email offering to build a custom AI Agent for ${item['Business Name']}, a dental practice. Explain how the AI agent can handle patient inquiries, appointment booking, and follow-ups automatically, saving staff time and improving patient experience. Keep it under 130 words.`\n  : `Write a short, persuasive cold outreach email offering to build or redesign a professional website for ${item['Business Name']}, a dental practice. Explain how a modern website attracts new patients, builds trust, and makes online booking easy. Keep it under 130 words.`;\n\nconst subject = isAI\n  ? `A Smarter Way for ${item['Business Name']} to Handle Patient Calls`\n  : `A New Website That Brings More Patients to ${item['Business Name']}`;\n\nreturn {\n  json: {\n    businessName: item['Business Name'],\n    phone: item['Phone'],\n    email: item['Email Sender'],\n    manager: managerName,\n    greeting,\n    servicePitch: item['Service Pitch'],\n    pitchInstruction,\n    subject\n  }\n};"
+      },
+      "id": "1835a036-e849-45ca-b396-fe7e125158ed",
+      "name": "Prepare Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        224,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $('Prepare Data').item.json.email }}",
+        "subject": "={{ $('Prepare Data').item.json.subject }}",
+        "message": "={{ $json.cleanedHtml }}\n<p>Best regards,<br>\nYOUR_NAME<br>\nYOUR_PHONE<br>\nYOUR_EMAIL@example.com</p>\n",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "c8563a23-8dcc-4124-9a09-0146a8687c8a",
+      "name": "Send Pitch Email",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        800,
+        80
+      ],
+      "webhookId": "acad7fe7-93dd-4498-a2aa-ce18380983f9"
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "models/gemini-2.5-flash",
+          "mode": "list",
+          "cachedResultName": "models/gemini-2.5-flash"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "={{ $json.pitchInstruction }}\n\nThe greeting to use is: {{ $json.greeting }}\n\nWrite like a real person casually emailing a business owner \u2014 not like a marketing campaign. Avoid words like \"free\", \"offer\", \"guarantee\", \"amazing\", and avoid exclamation marks. Keep it short, warm, and direct \u2014 like a human wrote it in 2 minutes, not a template.\n\nDo not include a subject line. Do not include any closing, sign-off, or signature of any kind \u2014 no \"Best regards\", no \"Sincerely\", no name placeholder, nothing after the last sentence of the email body. The email must end immediately after the final sentence.\n\nStart with the greeting on its own line, then a blank line, then the body only."
+            }
+          ]
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1.2,
+      "position": [
+        448,
+        0
+      ],
+      "id": "859b383e-db74-49e9-a5b0-ba4c801ee836",
+      "name": "Message a model",
+      "retryOnFail": true
+    },
+    {
+      "parameters": {
+        "formTitle": "Upload Business List",
+        "formDescription": "Upload the Excel/CSV file containing Business Name, Phone, Email, Manager, Service Pitch",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Business List (Excel or CSV)",
+              "fieldType": "file",
+              "multipleFiles": false,
+              "acceptFileTypes": ".xlsx,.csv,.xls"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "6fbac129-73b7-46e9-83c9-b46a62e63bd1",
+      "name": "Upload Business List",
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.2,
+      "position": [
+        -656,
+        80
+      ],
+      "webhookId": "757f74ce-dd68-4fec-ae3e-8aba0b8b55e8"
+    },
+    {
+      "parameters": {
+        "amount": 30
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        80
+      ],
+      "id": "767473f2-0bd3-4f13-99a4-914d4f442322",
+      "name": "Wait",
+      "webhookId": "0bb2d2c2-3582-4d68-847a-dff32674229a"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Loop over input items and add a new field called 'myNewField' to the JSON of each one\nlet text = $json.content.parts[0].text.trim();\n\n// Signature hatayein agar AI ne khud add ki ho\ntext = text.replace(/\\n*(Best regards|Sincerely|Regards|Warm regards|Thanks,?)[\\s\\S]*$/i, '').trim();\n\n// Paragraphs ko single line banayein (mid-sentence breaks hatayein)\nlet paragraphs = text.split(/\\n\\s*\\n/);\nparagraphs = paragraphs.map(p => p.replace(/\\n/g, ' ').trim());\n\n// HTML paragraphs banayein - <p> tags har wrapping issue ko khatam kar dete hain\nlet html = paragraphs.map(p => `<p>${p}</p>`).join('');\n\nreturn { json: { ...$json, cleanedHtml: html } };"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        720,
+        -48
+      ],
+      "id": "dc37526d-94b1-4106-a49c-aa5eb7ecbb72",
+      "name": "Code in JavaScript"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Convert Sheet to Data": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Businesses",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Businesses": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Wait",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Data": {
+      "main": [
+        [
+          {
+            "node": "Message a model",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Pitch Email": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Businesses",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Message a model": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upload Business List": {
+      "main": [
+        [
+          {
+            "node": "Convert Sheet to Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait": {
+      "main": [
+        [
+          {
+            "node": "Prepare Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Send Pitch Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false,
+    "timeSavedMode": "fixed",
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "versionId": "23a2ef80-a66a-4333-8df7-1b128fedd113",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": ""
+  },
+  "nodeGroups": [],
+  "id": "wZBhhwvf8m24iva4",
+  "tags": []
+}
